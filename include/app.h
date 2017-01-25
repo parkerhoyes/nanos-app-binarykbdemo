@@ -24,16 +24,11 @@
 #ifndef APP_H_
 #define APP_H_
 
-typedef enum {
-	APP_SIDE_LEFT,
-	APP_SIDE_RIGHT
-} app_side_e;
-
 void app_init();
-void app_choose(app_side_e side);
 void app_display();
 void app_draw();
 void app_event_button_push(unsigned int button_mask, unsigned int button_mask_counter);
+void app_event_ticker();
 void app_event_display_processed();
 
 #endif

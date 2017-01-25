@@ -1,13 +1,15 @@
 # Ledger Nano S Binary Keyboard Demo
 
-This repository contains an application designed to demonstrate a "binary
-keyboard" I am developing for the [Ledger Nano
-S](https://github.com/LedgerHQ/ledger-nano-s).
+[This repository](https://github.com/parkerhoyes/nanos-app-binarykbdemo)
+contains a demonstration of the "binary keyboard" for the [Ledger Nano
+S](https://github.com/LedgerHQ/ledger-nano-s) that is implemented as part of the
+[BOLOS User Interface
+Library](https://github.com/parkerhoyes/bolos-user-interface), the graphics
+library I created as an alternative to the standard BAGL that's a part of the
+official SDK for the Nano S.
 
-This application also uses
-[BUI](https://github.com/parkerhoyes/bolos-user-interface), the graphics library
-I created as an alternative to the standard BAGL that's a part of the official
-SDK for the Nano S.
+The pictures of the binary keyboard in this README are very outdated, but they
+still demonstrate the concept effectively.
 
 ![hello-world.jpg](pics/hello-world.jpg)
 

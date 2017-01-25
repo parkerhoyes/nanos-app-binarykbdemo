@@ -21,10 +21,10 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
+#include <stdbool.h>
+
 #include "os.h"
 #include "os_io_seproxyhal.h"
-
-#include "bui.h"
 
 #include "app.h"
 
@@ -127,6 +127,9 @@ unsigned char io_event(unsigned char channel) {
 	case SEPROXYHAL_TAG_BUTTON_PUSH_EVENT:
 		io_seproxyhal_button_push(&handle_button_push, G_io_seproxyhal_spi_buffer[3] >> 1);
 		break;
+	case SEPROXYHAL_TAG_TICKER_EVENT:
+		app_event_ticker();
+		break;
 	case SEPROXYHAL_TAG_DISPLAY_PROCESSED_EVENT:
 		app_event_display_processed();
 		break;
@@ -147,8 +150,6 @@ unsigned char io_event(unsigned char channel) {
 __attribute__((section(".boot"))) int main() {
 	// Exit critical section
 	__asm volatile("cpsie i");
-
-	bui_init();
 
 	// Ensure exception will work as planned
 	os_boot();

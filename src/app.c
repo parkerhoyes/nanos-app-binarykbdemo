@@ -24,138 +24,45 @@
 #include "app.h"
 
 #include <stdbool.h>
-#include <stdint.h>
+#include <stddef.h>
 
 #include "os.h"
 #include "os_io_seproxyhal.h"
 
 #include "bui.h"
+#include "bui_bkb.h"
 
-#define CEIL_DIV(x, y) (1 + (((x) - 1) / (y)))
-#define NTH_BIT(n, i) (((n) >> (7 - (i))) & 1)
-
-// The buffer that stores the characters that the user has typed
-static uint8_t app_type_buff[19];
-// The number of characters in app_type_buff
-static uint8_t app_type_buff_size;
-// The buffer that stores the possible characters the user may choose from (the order matters)
-static uint8_t app_chars[36];
-// The number of characters in app_chars
-static uint8_t app_chars_size;
-
-// The sequence of "bits" inputted by the user, starting at the MSB (0 is left, 1 is right)
-static uint8_t app_bits_typed;
-// The number of "bits" inputted by the user (the number of left / right choices)
-static uint8_t app_bits_typed_size;
+static bui_bitmap_128x32_t app_disp_buffer;
+static int8_t app_disp_progress;
+static bui_bkb_bkb_t app_bkb;
+static char app_bkb_type_buff[25];
 
 void app_init() {
-	app_type_buff_size = 0;
-	for (uint8_t i = 0; i < 26; i++) {
-		app_chars[i] = 'A' + i;
-	}
-	app_chars[26] = '_';
-	app_chars[27] = '<';
-	app_chars_size = 27;
-	app_bits_typed = 0;
-	app_bits_typed_size = 0;
+	// Set a ticker interval of 40 ms
+	G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_SET_TICKER_INTERVAL;
+	G_io_seproxyhal_spi_buffer[1] = 0;
+	G_io_seproxyhal_spi_buffer[2] = 2;
+	G_io_seproxyhal_spi_buffer[3] = 0;
+	G_io_seproxyhal_spi_buffer[4] = 40;
+	io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 5);
 
+	app_disp_progress = -1;
+	bui_bkb_init(&app_bkb, bui_bkb_layout_standard, sizeof(bui_bkb_layout_standard), app_bkb_type_buff, 0,
+			sizeof(app_bkb_type_buff), true);
 	app_display();
 }
 
-void app_choose(app_side_e side) {
-	if (side == APP_SIDE_RIGHT)
-		app_bits_typed |= 0x80 >> app_bits_typed_size;
-	app_bits_typed_size += 1;
-	uint8_t charsn = app_chars_size;
-	uint8_t charsi = 0;
-	for (uint8_t i = 0; i < app_bits_typed_size; i++) {
-		if (NTH_BIT(app_bits_typed, i) == 0) {
-			charsn = CEIL_DIV(charsn, 2);
-		} else {
-			charsi += CEIL_DIV(charsn, 2);
-			charsn /= 2;
-		}
-	}
-	if (charsn == 1) {
-		uint8_t ch = app_chars[charsi];
-		switch (ch) {
-			case '<':
-				app_type_buff_size -= 1;
-				break;
-			case '_':
-				ch = ' ';
-			default:
-				app_type_buff[app_type_buff_size++] = ch;
-				break;
-		}
-		app_bits_typed = 0;
-		app_bits_typed_size = 0;
-		if (app_type_buff_size == 0) {
-			app_chars_size = 27;
-			app_chars[0] = 'A';
-			app_chars[1] = 'B';
-		} else if (app_type_buff_size == 19) {
-			app_chars_size = 2;
-			app_chars[0] = '<';
-			app_chars[1] = '<';
-		} else {
-			app_chars_size = 28;
-			app_chars[0] = 'A';
-			app_chars[1] = 'B';
-		}
-	}
-}
-
 void app_display() {
-	bui_fill(false);
+	bui_fill(&app_disp_buffer, false);
 	app_draw();
-	bui_flush();
-	bui_display();
+	if (app_disp_progress == -1)
+		app_disp_progress = bui_display(&app_disp_buffer, 0);
+	else
+		app_disp_progress = 0;
 }
 
 void app_draw() {
-	// Draw textbox border
-	bui_fill_rect(1 - 1, 20 - 1, 126, 1, true); // These coords aren't right, are they?
-	bui_set_pixel(1, 21, true);
-	bui_set_pixel(126, 21, true);
-	bui_fill_rect(1 - 1, 31 - 1, 126, 1, true); // These coords aren't right, are they?
-	bui_set_pixel(1, 30, true);
-	bui_set_pixel(126, 30, true);
-
-	// Draw textbox contents
-	for (int i = 0; i < app_type_buff_size; i++) {
-		bui_draw_char(app_type_buff[i], i * 6 + 3, 22, BUI_HORIZONTAL_ALIGN_LEFT | BUI_VERTICAL_ALIGN_TOP,
-				BUI_FONT_LUCIDA_CONSOLE_8);
-	}
-	bui_fill_rect(app_type_buff_size * 6 + 3, 28, 5, 1, true);
-
-	// Draw center icons
-	bui_draw_bitmap(bui_bitmap_left_bitmap, bui_bitmap_left_w, 0, 0, 58, 5, bui_bitmap_left_w, bui_bitmap_left_h);
-	bui_draw_bitmap(bui_bitmap_right_bitmap, bui_bitmap_right_w, 0, 0, 66, 5, bui_bitmap_right_w, bui_bitmap_right_h);
-
-	// Draw keyboard "keys"
-	uint8_t charsi = 0;
-	uint8_t charsn = app_chars_size;
-	for (uint8_t i = 0; i < app_bits_typed_size; i++) {
-		if (NTH_BIT(app_bits_typed, i) == 0) {
-			charsn = CEIL_DIV(charsn, 2);
-		} else {
-			charsi += CEIL_DIV(charsn, 2);
-			charsn /= 2;
-		}
-	}
-	uint8_t lefti = charsi;
-	uint8_t leftn = CEIL_DIV(charsn, 2);
-	for (uint8_t i = 0; i < leftn; i++) {
-		bui_draw_char(app_chars[lefti + i], 1 + 6 * (i % 9), i < 9 ? 0 : 9,
-				BUI_HORIZONTAL_ALIGN_LEFT | BUI_VERTICAL_ALIGN_TOP, BUI_FONT_LUCIDA_CONSOLE_8);
-	}
-	uint8_t righti = lefti + leftn;
-	uint8_t rightn = charsn / 2;
-	for (uint8_t i = 0; i < rightn; i++) {
-		bui_draw_char(app_chars[righti + i], 74 + 6 * (i % 9), i < 9 ? 0 : 9,
-				BUI_HORIZONTAL_ALIGN_LEFT | BUI_VERTICAL_ALIGN_TOP, BUI_FONT_LUCIDA_CONSOLE_8);
-	}
+	bui_bkb_draw(&app_bkb, &app_disp_buffer);
 }
 
 void app_event_button_push(unsigned int button_mask, unsigned int button_mask_counter) {
@@ -164,17 +71,22 @@ void app_event_button_push(unsigned int button_mask, unsigned int button_mask_co
 		os_sched_exit(0); // Go back to the dashboard
 		break;
 	case BUTTON_EVT_RELEASED | BUTTON_LEFT:
-		app_choose(APP_SIDE_LEFT);
+		bui_bkb_choose(&app_bkb, BUI_DIR_LEFT);
 		app_display();
 		break;
 	case BUTTON_EVT_RELEASED | BUTTON_RIGHT:
-		app_choose(APP_SIDE_RIGHT);
+		bui_bkb_choose(&app_bkb, BUI_DIR_RIGHT);
 		app_display();
 		break;
 	}
 }
 
+void app_event_ticker() {
+	if (bui_bkb_tick(&app_bkb))
+		app_display();
+}
+
 void app_event_display_processed() {
-	bui_display_processed();
-	bui_display();
+	if (app_disp_progress != -1)
+		app_disp_progress = bui_display(&app_disp_buffer, app_disp_progress);
 }
